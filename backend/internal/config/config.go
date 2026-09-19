@@ -1,6 +1,3 @@
-// Package config reads all runtime settings from environment variables.
-// Everything has a sensible default so `go run ./cmd/server` works with only
-// DATABASE_URL set.
 package config
 
 import (
@@ -14,8 +11,8 @@ type Config struct {
 	Port           string
 	DatabaseURL    string
 	AllowedOrigins []string
-	CycleMs        int64 // length of one playback cycle; 5h in production
-	SyncLeadMs     int64 // how far in the future a sync starts, so all clients get the event first
+	CycleMs        int64
+	SyncLeadMs     int64
 	SeedOnStart    bool
 	MinSyncMs      int64
 	MaxSyncMs      int64

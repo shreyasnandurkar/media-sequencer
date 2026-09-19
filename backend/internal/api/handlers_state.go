@@ -14,11 +14,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// handleTime is the reference clock. Clients sample it a few times and keep the
-// round trip with the smallest latency to estimate their offset (see
-// frontend/src/lib/clock.ts).
 func (s *Server) handleTime(w http.ResponseWriter, r *http.Request) {
-	// No caching — a cached clock is worse than no clock.
+
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]int64{"serverTimeMs": s.now()})
 }
@@ -71,8 +68,6 @@ func (s *Server) handleCreateMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The DB has a CHECK that ties url presence to type; validate up front so
-	// the client gets a readable 400 rather than a constraint violation.
 	if mt == model.MediaBlank {
 		if req.URL != nil && *req.URL != "" {
 			badRequest(w, "blank media must not have a url")
@@ -111,18 +106,9 @@ func (s *Server) handleCreateMedia(w http.ResponseWriter, r *http.Request) {
 var errBadURL = errors.New(
 	`url must be an absolute http:// or https:// address, or a site-root path like "/media/clip.mp4"`)
 
-// validateMediaURL accepts two forms:
-//
-//	https://cdn.example/clip.mp4   an externally hosted file
-//	/media/clip.mp4                a file served by the frontend itself
-//
-// The second form exists so media kept in frontend/public/media/ can be stored
-// once and still resolve correctly everywhere: the browser resolves it against
-// whatever origin the page is on, so the same row works locally and deployed.
 func validateMediaURL(raw string) error {
 	if strings.HasPrefix(raw, "/") {
-		// "//host/path" is protocol-relative - it looks like a path but points
-		// at another origin entirely, so it is not the local form we mean.
+
 		if strings.HasPrefix(raw, "//") {
 			return errBadURL
 		}
@@ -164,8 +150,6 @@ func (s *Server) handleCreateWindow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// New windows join the existing cycle grid: use the same epoch alignment as
-	// the seeded windows so every window flips at the same instant.
 	epoch := scheduler.CycleStart(0, s.cfg.CycleMs, s.now())
 	win, err := s.store.CreateWindow(r.Context(), req.Name, epoch)
 	if err != nil {
@@ -177,9 +161,6 @@ func (s *Server) handleCreateWindow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, win)
 }
 
-// handleWindowNow exposes the server-side Resolve() result. It exists purely so
-// an evaluator (or a confused developer) can compare what the backend thinks is
-// playing with what the browser is showing.
 func (s *Server) handleWindowNow(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	win, err := s.store.GetWindow(r.Context(), id)

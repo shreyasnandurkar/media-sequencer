@@ -3,10 +3,6 @@ import { describe, expect, it } from 'vitest';
 import vectors from '../../../testdata/schedule_vectors.json';
 import { cycleStart, resolve, type SchedulerItem } from './scheduler';
 
-/**
- * These are the exact same vectors backend/internal/scheduler/scheduler_test.go
- * runs. If the Go and TS implementations ever disagree, one of them fails here.
- */
 interface VectorCase {
   name: string;
   cycleMs: number;
@@ -33,7 +29,6 @@ describe('resolve against the shared vectors', () => {
       expect(got.elapsedInItemMs).toBe(c.expected.elapsedInItemMs);
       expect(got.remainingMs).toBe(c.expected.remainingMs);
 
-      // Invariants that must hold for every case.
       expect(got.startedAtMs).toBe(c.now - got.elapsedInItemMs);
       expect(got.remainingMs).toBeGreaterThan(0);
       expect(got.cycleEndMs - got.cycleStartMs).toBe(c.cycleMs);
@@ -58,7 +53,7 @@ describe('cycleStart', () => {
 
 describe('playback rules', () => {
   const epoch = 1_000_000_000_000;
-  const cycle = 60_000; // the demo-friendly short cycle
+  const cycle = 60_000;
   const noAnchor = { cycleEpoch: epoch, anchorAt: null, anchorIndex: null };
   const items: SchedulerItem[] = [
     { id: 1, durationMs: 10_000 },
@@ -88,7 +83,7 @@ describe('playback rules', () => {
       t += got.remainingMs;
       steps++;
     }
-    // Stepping by remainingMs must land exactly on the cycle boundary.
+
     expect(t).toBe(epoch + cycle);
   });
 });

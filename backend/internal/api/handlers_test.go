@@ -13,10 +13,6 @@ import (
 	"github.com/shreyasnandurkar/media-sequencer/backend/internal/events"
 )
 
-// These tests cover request validation and routing only, so they run without a
-// database: every case below is rejected before the handler reaches the store.
-// (Store behaviour is covered by the scheduler/re-anchor tests and by the
-// manual verification script in the README.)
 func testServer() http.Handler {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Config{
@@ -84,7 +80,7 @@ func TestUnknownRouteIs404(t *testing.T) {
 }
 
 func TestMethodMismatchIs405(t *testing.T) {
-	// Go 1.22 routing answers a known path with the wrong method as 405.
+
 	if rec := do(t, http.MethodDelete, "/api/health", ""); rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status %d", rec.Code)
 	}
@@ -119,14 +115,12 @@ func TestCreateMediaValidation(t *testing.T) {
 	}
 }
 
-// validateMediaURL is exercised directly because the accepted cases cannot go
-// through the handler without a database.
 func TestValidateMediaURL(t *testing.T) {
 	ok := []string{
 		"https://cdn.example/clip.mp4",
 		"http://localhost:5173/media/clip.mp4",
 		"https://picsum.photos/id/1015/1280/720",
-		// Site-root paths: media served by the frontend itself.
+
 		"/media/clip.mp4",
 		"/media/sub dir/a%20b.png",
 	}
@@ -138,13 +132,13 @@ func TestValidateMediaURL(t *testing.T) {
 
 	bad := []string{
 		"",
-		"media/clip.mp4",          // relative, but not rooted
-		"//evil.example/clip.mp4", // protocol-relative: another origin in disguise
+		"media/clip.mp4",
+		"//evil.example/clip.mp4",
 		"ftp://example.com/a.mp4",
 		"javascript:alert(1)",
 		"data:text/html,hi",
-		"https://",  // no host
-		"http:///a", // no host
+		"https://",
+		"http:///a",
 	}
 	for _, raw := range bad {
 		if err := validateMediaURL(raw); err == nil {

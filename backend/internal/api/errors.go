@@ -9,9 +9,6 @@ import (
 	"github.com/shreyasnandurkar/media-sequencer/backend/internal/store"
 )
 
-// Every error response has the same shape:
-//
-//	{ "error": { "code": "...", "message": "..." } }
 type errorBody struct {
 	Error errorDetail `json:"error"`
 }
@@ -44,8 +41,6 @@ func notFound(w http.ResponseWriter, message string) {
 	writeError(w, http.StatusNotFound, "not_found", message)
 }
 
-// writeStoreError maps the store's sentinel errors onto status codes so
-// handlers do not each repeat the same switch.
 func writeStoreError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -58,8 +53,6 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	}
 }
 
-// decodeJSON reads a request body into dst, rejecting unknown fields so typos
-// in a client payload surface as a 400 instead of being silently ignored.
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	dec.DisallowUnknownFields()

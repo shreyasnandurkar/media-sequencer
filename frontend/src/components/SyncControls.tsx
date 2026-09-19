@@ -10,13 +10,6 @@ interface Props {
   onError: (message: string) => void;
 }
 
-/**
- * Starts and cancels a global sync.
- *
- * The server picks the start time a short moment ahead (SYNC_LEAD_MS), so the
- * event reaches every client before the switch happens and all windows flip at
- * the same wall-clock instant instead of "whenever my message arrived".
- */
 export function SyncControls({ media, activeSync, now, onDone, onError }: Props) {
   const [mediaId, setMediaId] = useState('');
   const [durationSec, setDurationSec] = useState('');

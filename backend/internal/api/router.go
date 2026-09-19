@@ -1,4 +1,3 @@
-// Package api wires HTTP routes to the store, the scheduler and the SSE hub.
 package api
 
 import (
@@ -16,7 +15,7 @@ type Server struct {
 	store *store.Store
 	hub   *events.Hub
 	log   *slog.Logger
-	// now is injectable so handler tests can pin the clock.
+
 	now func() int64
 }
 
@@ -30,8 +29,6 @@ func NewServer(cfg config.Config, st *store.Store, hub *events.Hub, log *slog.Lo
 	}
 }
 
-// Handler builds the route table. Go 1.22's net/http can match methods and
-// path wildcards ("GET /api/windows/{id}"), so no router library is needed.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -55,11 +52,9 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 
-	// Outermost first: recover -> log -> CORS -> routes.
 	return withRecover(s.log, withLogging(s.log, withCORS(s.cfg.AllowedOrigins, mux)))
 }
 
-// broadcast is called after every mutation so open clients re-fetch state.
 func (s *Server) broadcast(name, data string) {
 	s.hub.Publish(events.Event{Name: name, Data: data})
 }

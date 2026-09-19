@@ -14,7 +14,7 @@ interface Props {
   now: number;
   clock: ServerClock;
   debug: boolean;
-  /** Full-screen single-window mode hides the playlist and chrome. */
+
   fullscreen?: boolean;
   onDeleteItem?: (windowId: string, itemId: number) => void;
 }
@@ -30,8 +30,7 @@ export function WindowPlayer({
   fullscreen = false,
   onDeleteItem,
 }: Props) {
-  // Recomputed every tick. It is a handful of arithmetic over a short list, so
-  // this is far cheaper than any subscription machinery would be.
+
   const playing = whatToPlay(win, mediaById, cycleMs, activeSync, now);
   const nextMedia = whatIsNext(win, mediaById, cycleMs, activeSync, playing, now);
 
@@ -126,12 +125,6 @@ v${win.version}`}
   );
 }
 
-/**
- * Warms the browser cache for the next item so the switch is instant.
- *
- * Images go through the Image() constructor (no DOM node needed); videos need a
- * real element for the browser to start buffering, so we render a hidden one.
- */
 const Preloader = memo(function Preloader({ media }: { media: Media }) {
   const url = media.url;
 
@@ -139,7 +132,7 @@ const Preloader = memo(function Preloader({ media }: { media: Media }) {
     if (!url || media.type !== 'image') return;
     const img = new Image();
     img.src = url;
-    // No cleanup needed: an unreferenced Image simply stops and is collected.
+
   }, [url, media.type]);
 
   const videoUrl = useMemo(() => (media.type === 'video' ? url : null), [media.type, url]);

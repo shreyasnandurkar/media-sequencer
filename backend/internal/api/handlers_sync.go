@@ -11,12 +11,6 @@ type startSyncReq struct {
 	DurationMs *int64 `json:"durationMs"`
 }
 
-// handleStartSync makes every window show one media item at the same instant.
-//
-// The key detail is SYNC_LEAD_MS: the sync does not start "now", it starts a
-// short moment in the future. That gives the SSE event time to reach every
-// client, so they all switch at the same wall-clock instant instead of
-// "whenever my message arrived".
 func (s *Server) handleStartSync(w http.ResponseWriter, r *http.Request) {
 	var req startSyncReq
 	if !decodeJSON(w, r, &req) {
@@ -62,8 +56,7 @@ func (s *Server) handleGetSync(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
-	// sy is a *model.Sync. When it is nil this encodes as JSON `null`, which is
-	// exactly what the contract promises for "no active sync".
+
 	writeJSON(w, http.StatusOK, sy)
 }
 

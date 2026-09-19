@@ -1,5 +1,3 @@
-// Package store is the only place that talks to PostgreSQL. Handlers call it;
-// it calls the (pure) scheduler when a playlist edit needs re-anchoring.
 package store
 
 import (
@@ -18,7 +16,6 @@ import (
 	"github.com/shreyasnandurkar/media-sequencer/backend/internal/scheduler"
 )
 
-// Sentinel errors the API layer maps onto HTTP status codes.
 var (
 	ErrNotFound = errors.New("not found")
 	ErrConflict = errors.New("conflict")
@@ -46,9 +43,6 @@ func New(ctx context.Context, databaseURL string, log *slog.Logger) (*Store, err
 
 func (s *Store) Close() { s.pool.Close() }
 
-// Migrate applies every embedded .sql file, in filename order, exactly once.
-// Applied names are recorded in schema_migrations, so restarts are cheap and
-// a fresh database and an existing one both end up in the same shape.
 func (s *Store) Migrate(ctx context.Context) error {
 	_, err := s.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		name TEXT PRIMARY KEY,
@@ -82,8 +76,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		// Each migration runs in its own transaction: either the whole file
-		// applies and is recorded, or nothing changes.
+
 		err = s.withTx(ctx, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(ctx, string(body)); err != nil {
 				return err
@@ -99,8 +92,6 @@ func (s *Store) Migrate(ctx context.Context) error {
 	return nil
 }
 
-// withTx runs fn inside a transaction, rolling back on error or panic.
-// (defer + named error is the standard Go idiom for this.)
 func (s *Store) withTx(ctx context.Context, fn func(tx pgx.Tx) error) (err error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -120,8 +111,6 @@ func (s *Store) withTx(ctx context.Context, fn func(tx pgx.Tx) error) (err error
 	}
 	return tx.Commit(ctx)
 }
-
-// --- Reads ---------------------------------------------------------------
 
 func (s *Store) ListMedia(ctx context.Context) ([]model.Media, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, name, type, url, duration_ms FROM media ORDER BY created_at, id`)
@@ -152,8 +141,6 @@ func (s *Store) GetMedia(ctx context.Context, id string) (model.Media, error) {
 	return m, err
 }
 
-// ListWindows returns every window with its playlist already attached.
-// One query per table (not one per window) keeps this O(1) round trips.
 func (s *Store) ListWindows(ctx context.Context) ([]model.Window, error) {
 	return listWindows(ctx, s.pool, "")
 }
@@ -169,8 +156,6 @@ func (s *Store) GetWindow(ctx context.Context, id string) (model.Window, error) 
 	return ws[0], nil
 }
 
-// listWindows reads windows plus their items. The inline interface means it
-// accepts both *pgxpool.Pool and pgx.Tx, so it works in or out of a transaction.
 func listWindows(ctx context.Context, q interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }, onlyID string) ([]model.Window, error) {
@@ -227,7 +212,6 @@ func listWindows(ctx context.Context, q interface {
 	return windows, itemRows.Err()
 }
 
-// State assembles the single payload the frontend polls/refreshes.
 func (s *Store) State(ctx context.Context, cycleMs, now int64) (model.State, error) {
 	media, err := s.ListMedia(ctx)
 	if err != nil {
@@ -250,8 +234,6 @@ func (s *Store) State(ctx context.Context, cycleMs, now int64) (model.State, err
 	}, nil
 }
 
-// --- Media writes --------------------------------------------------------
-
 func (s *Store) CreateMedia(ctx context.Context, m model.Media) (model.Media, error) {
 	if m.ID == "" {
 		id, err := s.nextMediaID(ctx)
@@ -272,8 +254,6 @@ func (s *Store) CreateMedia(ctx context.Context, m model.Media) (model.Media, er
 	return m, nil
 }
 
-// nextMediaID picks the next free M<n>. Good enough for a single-instance
-// service; a collision just surfaces as a 409 and the caller retries.
 func (s *Store) nextMediaID(ctx context.Context) (string, error) {
 	var maxN int
 	err := s.pool.QueryRow(ctx,
@@ -284,8 +264,6 @@ func (s *Store) nextMediaID(ctx context.Context) (string, error) {
 	}
 	return fmt.Sprintf("M%d", maxN+1), nil
 }
-
-// --- Window writes -------------------------------------------------------
 
 func (s *Store) CreateWindow(ctx context.Context, name string, cycleEpoch int64) (model.Window, error) {
 	var w model.Window
@@ -312,15 +290,6 @@ func (s *Store) CreateWindow(ctx context.Context, name string, cycleEpoch int64)
 	return w, err
 }
 
-// mutatePlaylist is the heart of TASK.md 2.3. Every playlist edit goes through
-// it so the re-anchor logic can never be forgotten:
-//
-//  1. lock the window row and read the CURRENT list
-//  2. Resolve() with the old list -> what is on screen right now
-//  3. run the caller's mutation
-//  4. re-read the list, recompute the anchor, bump version
-//
-// All of it in one transaction, so a concurrent edit cannot interleave.
 func (s *Store) mutatePlaylist(
 	ctx context.Context,
 	windowID string,
@@ -330,7 +299,7 @@ func (s *Store) mutatePlaylist(
 	var out model.Window
 
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		// SELECT ... FOR UPDATE takes a row lock for the rest of the transaction.
+
 		var w model.Window
 		err := tx.QueryRow(ctx,
 			`SELECT id, name, cycle_epoch, anchor_at, anchor_index, version, position
@@ -397,7 +366,6 @@ func itemsOf(ctx context.Context, tx pgx.Tx, windowID string) ([]model.PlaylistI
 	return out, rows.Err()
 }
 
-// AddItem inserts media into a window's playlist. position==nil appends.
 func (s *Store) AddItem(ctx context.Context, windowID, mediaID string, position *int, durationMs *int64, cycleMs, now int64) (model.Window, error) {
 	return s.mutatePlaylist(ctx, windowID, cycleMs, now,
 		func(ctx context.Context, tx pgx.Tx, w model.Window, items []model.PlaylistItem) error {
@@ -420,13 +388,10 @@ func (s *Store) AddItem(ctx context.Context, windowID, mediaID string, position 
 				}
 			}
 
-			// Rebuild the ordering with the new item spliced in. The two-step
-			// write (park everything above 10000, then write final positions)
-			// avoids transiently violating UNIQUE (window_id, position).
 			ids := make([]int64, 0, len(items)+1)
 			for i, it := range items {
 				if i == at {
-					ids = append(ids, 0) // placeholder for the new row
+					ids = append(ids, 0)
 				}
 				ids = append(ids, it.ID)
 			}
@@ -471,8 +436,6 @@ func (s *Store) DeleteItem(ctx context.Context, windowID string, itemID int64, c
 		})
 }
 
-// SetOrder rewrites a window's playlist order. itemIDs must be exactly the
-// window's current item ids, in the desired order.
 func (s *Store) SetOrder(ctx context.Context, windowID string, itemIDs []int64, cycleMs, now int64) (model.Window, error) {
 	return s.mutatePlaylist(ctx, windowID, cycleMs, now,
 		func(ctx context.Context, tx pgx.Tx, w model.Window, items []model.PlaylistItem) error {
@@ -505,7 +468,6 @@ func (s *Store) SetOrder(ctx context.Context, windowID string, itemIDs []int64, 
 		})
 }
 
-// normalizePositions rewrites positions to 0..n-1 keeping the current order.
 func normalizePositions(ctx context.Context, tx pgx.Tx, windowID string) error {
 	rows, err := tx.Query(ctx,
 		`SELECT id FROM playlist_items WHERE window_id = $1 ORDER BY position`, windowID)
@@ -538,11 +500,6 @@ func normalizePositions(ctx context.Context, tx pgx.Tx, windowID string) error {
 	return nil
 }
 
-// --- Sync ----------------------------------------------------------------
-
-// ActiveSync returns the sync that is running or about to run, or nil.
-// "About to run" matters: a sync starts SYNC_LEAD_MS in the future so every
-// client can be told before it begins.
 func (s *Store) ActiveSync(ctx context.Context, now int64) (*model.Sync, error) {
 	var sy model.Sync
 	err := s.pool.QueryRow(ctx,
@@ -560,7 +517,6 @@ func (s *Store) ActiveSync(ctx context.Context, now int64) (*model.Sync, error) 
 	return &sy, nil
 }
 
-// StartSync replaces any pending/active sync with a new one.
 func (s *Store) StartSync(ctx context.Context, mediaID string, startAt, endAt, now int64) (model.Sync, error) {
 	var sy model.Sync
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
@@ -584,7 +540,6 @@ func (s *Store) StartSync(ctx context.Context, mediaID string, startAt, endAt, n
 	return sy, err
 }
 
-// CancelActiveSync ends the current sync early. Returns false if there was none.
 func (s *Store) CancelActiveSync(ctx context.Context, now int64) (bool, error) {
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE syncs SET cancelled_at = $1 WHERE cancelled_at IS NULL AND end_at > $1`, now)

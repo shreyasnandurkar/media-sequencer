@@ -1,8 +1,3 @@
-/**
- * Typed wrappers around the backend REST API. One place that knows about URLs,
- * JSON shapes and error handling.
- */
-
 export type MediaType = 'image' | 'video' | 'blank';
 
 export interface Media {
@@ -46,15 +41,9 @@ export interface AppState {
   activeSync: SyncState | null;
 }
 
-/**
- * Where the backend lives. Set VITE_API_BASE_URL at build time (see
- * .env.example). An empty value means "same origin", which is handy if the API
- * is ever put behind the same domain.
- */
 export const API_BASE_URL: string =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
-/** The shape the backend uses for every error response. */
 interface ApiErrorBody {
   error?: { code?: string; message?: string };
 }
@@ -88,7 +77,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         message = body.error.message;
       }
     } catch {
-      // Not JSON (a proxy error page, say). Keep the status-line message.
+
     }
     throw new ApiError(res.status, code, message);
   }

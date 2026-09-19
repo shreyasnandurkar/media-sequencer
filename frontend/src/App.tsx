@@ -11,22 +11,18 @@ import { useAppState, type ConnectionStatus } from './hooks/useAppState';
 import { useNow } from './hooks/useNow';
 import { ServerClock, type ClockInfo } from './lib/clock';
 
-// One clock for the whole app, created once at module load. Every window and
-// every route reads the same estimate, which is the entire point.
 const clock = new ServerClock(API_BASE_URL);
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
-      {/* A window on its own, for proving cross-device sync in the demo. */}
       <Route path="/window/:id" element={<SingleWindow />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
 
-/** Subscribes to the clock so the debug overlay can show live offset/RTT. */
 function useClockInfo(): ClockInfo {
   const [info, setInfo] = useState<ClockInfo>(() => clock.info());
   useEffect(() => clock.subscribe(setInfo), []);
@@ -208,10 +204,6 @@ function StatusDot({ status }: { status: ConnectionStatus }) {
   );
 }
 
-/**
- * Media lookup by id. useMemo keeps the Map stable between ticks so the
- * memoised MediaView is not invalidated four times a second.
- */
 function useMediaIndex(media: Media[] | undefined): Map<string, Media> {
   return useMemo(() => new Map((media ?? []).map((m) => [m.id, m])), [media]);
 }

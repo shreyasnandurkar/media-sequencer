@@ -2,20 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { resolve } from './scheduler';
 
-/**
- * Opt-in integration check: does the TypeScript scheduler agree with the Go one
- * on live data?
- *
- * The unit tests prove both implementations match a fixed set of vectors. This
- * proves they also match on the real seeded playlists at a real instant, which
- * is what actually matters when a browser and the server disagree about what is
- * on screen.
- *
- * Run it with the backend up:
- *   $env:API_BASE="http://localhost:8080"; npm test
- */
-// Declared locally rather than pulling Node's global types into the app's
-// tsconfig: this file is the only one that runs outside the browser.
 declare const process: { env: Record<string, string | undefined> };
 
 const API_BASE = process.env.API_BASE;
@@ -28,8 +14,6 @@ describe.skipIf(!API_BASE)('TS and Go schedulers agree on live data', () => {
     for (const win of state.windows) {
       const server = await fetch(`${API_BASE}/api/windows/${win.id}/now`).then((r) => r.json());
 
-      // Resolve locally at the exact instant the server used, so the only
-      // possible difference is the algorithm itself.
       const mine = resolve(
         win,
         win.items.map((i: { id: number; mediaId: string; durationMs: number }) => ({

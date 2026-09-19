@@ -13,8 +13,6 @@ type addItemReq struct {
 	DurationMs *int64 `json:"durationMs"`
 }
 
-// handleAddItem is the "add media to a window's list at runtime" requirement.
-// The store re-anchors inside the same transaction so nothing on screen jumps.
 func (s *Server) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	windowID := r.PathValue("id")
 

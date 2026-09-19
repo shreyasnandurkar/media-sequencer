@@ -6,17 +6,11 @@ import (
 	"strings"
 )
 
-// LoadDotEnv reads a simple KEY=VALUE file and sets any variable that is not
-// already present in the real environment. Real env vars always win, which is
-// what hosting platforms expect.
-//
-// Deliberately tiny and dependency-free: comments, blank lines, "export "
-// prefixes and surrounding quotes are handled; nothing else is.
 func LoadDotEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // no .env is normal in production
+			return nil
 		}
 		return err
 	}

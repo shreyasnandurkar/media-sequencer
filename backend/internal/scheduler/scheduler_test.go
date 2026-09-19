@@ -9,7 +9,6 @@ import (
 	"github.com/shreyasnandurkar/media-sequencer/backend/internal/model"
 )
 
-// The vector file is shared with the TypeScript port; both must pass it.
 const vectorPath = "../../../testdata/schedule_vectors.json"
 
 type vectorFile struct {
@@ -83,7 +82,7 @@ func TestResolveAgainstSharedVectors(t *testing.T) {
 			if got.RemainingMs != c.Exp.RemainingMs {
 				t.Errorf("remainingMs: got %d want %d", got.RemainingMs, c.Exp.RemainingMs)
 			}
-			// Invariants that hold for every case.
+
 			if got.StartedAtMs != c.Now-got.ElapsedInItemMs {
 				t.Errorf("startedAtMs inconsistent: %d", got.StartedAtMs)
 			}
@@ -108,16 +107,11 @@ func TestCycleStartIsStableAcrossACycle(t *testing.T) {
 	if CycleStart(epoch, cycle, epoch+2*cycle) != epoch+2*cycle {
 		t.Fatal("should have advanced to cycle 2")
 	}
-	// Before the epoch, floor division must step backwards, not toward zero.
+
 	if got := CycleStart(epoch, cycle, epoch-1); got != epoch-cycle {
 		t.Fatalf("pre-epoch: got %d want %d", got, epoch-cycle)
 	}
 }
-
-// --- Re-anchoring (TASK.md 2.3) ------------------------------------------
-//
-// The rule under test: after a playlist edit, whatever is on screen must keep
-// playing with the same start time. Screens must not jump.
 
 const (
 	epoch = int64(1_000_000_000_000)
@@ -132,8 +126,6 @@ func mkItems(specs ...[2]int64) []model.PlaylistItem {
 	return out
 }
 
-// editAndResolve applies a mutation the way the store does: resolve, re-anchor,
-// then resolve again with the new list. It returns the before/after results.
 func editAndResolve(t *testing.T, w model.Window, oldItems, newItems []model.PlaylistItem, now int64) (Result, Result) {
 	t.Helper()
 	before := Resolve(w, oldItems, cycle, now)
@@ -159,7 +151,7 @@ func assertNoJump(t *testing.T, before, after Result) {
 func TestReanchorAppendKeepsCurrentItem(t *testing.T) {
 	w := model.Window{CycleEpoch: epoch}
 	old := mkItems([2]int64{1, 10000}, [2]int64{2, 30000})
-	now := epoch + 25000 // 15s into item 2
+	now := epoch + 25000
 	newItems := mkItems([2]int64{1, 10000}, [2]int64{2, 30000}, [2]int64{3, 8000})
 
 	before, after := editAndResolve(t, w, old, newItems, now)
@@ -172,9 +164,8 @@ func TestReanchorAppendKeepsCurrentItem(t *testing.T) {
 func TestReanchorInsertBeforeCurrentKeepsCurrentItem(t *testing.T) {
 	w := model.Window{CycleEpoch: epoch}
 	old := mkItems([2]int64{1, 10000}, [2]int64{2, 30000}, [2]int64{3, 8000})
-	now := epoch + 25000 // 15s into item 2
-	// Insert a new item at position 0. Without re-anchoring this would shove
-	// every index along and the screen would jump to different media.
+	now := epoch + 25000
+
 	newItems := mkItems([2]int64{9, 5000}, [2]int64{1, 10000}, [2]int64{2, 30000}, [2]int64{3, 8000})
 
 	before, after := editAndResolve(t, w, old, newItems, now)
@@ -188,7 +179,7 @@ func TestReanchorDeletingAnotherItemKeepsCurrentItem(t *testing.T) {
 	w := model.Window{CycleEpoch: epoch}
 	old := mkItems([2]int64{1, 10000}, [2]int64{2, 30000}, [2]int64{3, 8000})
 	now := epoch + 25000
-	newItems := mkItems([2]int64{2, 30000}, [2]int64{3, 8000}) // removed item 1
+	newItems := mkItems([2]int64{2, 30000}, [2]int64{3, 8000})
 
 	before, after := editAndResolve(t, w, old, newItems, now)
 	assertNoJump(t, before, after)
@@ -197,7 +188,7 @@ func TestReanchorDeletingAnotherItemKeepsCurrentItem(t *testing.T) {
 func TestReanchorDeletingCurrentItemStartsNextImmediately(t *testing.T) {
 	w := model.Window{CycleEpoch: epoch}
 	old := mkItems([2]int64{1, 10000}, [2]int64{2, 30000}, [2]int64{3, 8000})
-	now := epoch + 25000 // inside item 2, index 1
+	now := epoch + 25000
 	newItems := mkItems([2]int64{1, 10000}, [2]int64{3, 8000})
 
 	before, after := editAndResolve(t, w, old, newItems, now)
@@ -228,15 +219,13 @@ func TestReanchorClearedWhenListBecomesEmpty(t *testing.T) {
 	}
 }
 
-// An anchor set during one cycle must not leak into the next one: the 5h
-// boundary always restarts the list at item 0.
 func TestAnchorDoesNotSurviveIntoTheNextCycle(t *testing.T) {
 	anchorAt := epoch + 1_000_000
 	anchorIdx := 2
 	w := model.Window{CycleEpoch: epoch, AnchorAt: &anchorAt, AnchorIndex: &anchorIdx}
 	list := mkItems([2]int64{1, 10000}, [2]int64{2, 30000}, [2]int64{3, 8000})
 
-	got := Resolve(w, list, cycle, epoch+cycle) // first instant of the next cycle
+	got := Resolve(w, list, cycle, epoch+cycle)
 	if got.Index != 0 || got.ElapsedInItemMs != 0 {
 		t.Fatalf("new cycle must restart at item 0, got index %d elapsed %d", got.Index, got.ElapsedInItemMs)
 	}

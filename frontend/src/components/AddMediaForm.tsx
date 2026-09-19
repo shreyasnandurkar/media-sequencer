@@ -9,13 +9,6 @@ interface Props {
   onError: (message: string) => void;
 }
 
-/**
- * "Add media to a window's list" - the dynamic-update requirement.
- *
- * The backend re-anchors inside the same transaction, so whatever is on screen
- * when this is submitted keeps playing to its natural end; the new list takes
- * over from the following item.
- */
 export function AddMediaForm({ windows, media, onDone, onError }: Props) {
   const [windowId, setWindowId] = useState('');
   const [mediaId, setMediaId] = useState('');

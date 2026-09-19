@@ -1,133 +1,463 @@
 {
-  "_comment": "Shared scheduler test vectors. Loaded by backend/internal/scheduler/scheduler_test.go AND frontend/src/lib/scheduler.test.ts. Both implementations must produce identical results. cycleEpoch 1000000000000 is an arbitrary round unix-ms value.",
   "cases": [
     {
       "name": "first item at cycle start",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000000000000,
-      "expected": { "blank": false, "index": 0, "elapsedInItemMs": 0, "remainingMs": 10000 }
+      "expected": {
+        "blank": false,
+        "index": 0,
+        "elapsedInItemMs": 0,
+        "remainingMs": 10000
+      }
     },
     {
       "name": "mid-way through item 2 of the first loop",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000000025000,
-      "expected": { "blank": false, "index": 1, "elapsedInItemMs": 15000, "remainingMs": 15000 }
+      "expected": {
+        "blank": false,
+        "index": 1,
+        "elapsedInItemMs": 15000,
+        "remainingMs": 15000
+      }
     },
     {
       "name": "several full loops later (modulo path)",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000004825000,
-      "expected": { "blank": false, "index": 1, "elapsedInItemMs": 15000, "remainingMs": 15000 }
+      "expected": {
+        "blank": false,
+        "index": 1,
+        "elapsedInItemMs": 15000,
+        "remainingMs": 15000
+      }
     },
     {
       "name": "last partial loop is truncated at the cycle boundary (remainingMs capped)",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 7000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 7000
+        }
+      ],
       "now": 1000017998000,
-      "expected": { "blank": false, "index": 2, "elapsedInItemMs": 4000, "remainingMs": 2000 }
+      "expected": {
+        "blank": false,
+        "index": 2,
+        "elapsedInItemMs": 4000,
+        "remainingMs": 2000
+      }
     },
     {
       "name": "exactly at the cycle boundary restarts at item 0",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000018000000,
-      "expected": { "blank": false, "index": 0, "elapsedInItemMs": 0, "remainingMs": 10000 }
+      "expected": {
+        "blank": false,
+        "index": 0,
+        "elapsedInItemMs": 0,
+        "remainingMs": 10000
+      }
     },
     {
       "name": "second cycle restarts at item 0 rather than continuing the loop",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000018005000,
-      "expected": { "blank": false, "index": 0, "elapsedInItemMs": 5000, "remainingMs": 5000 }
+      "expected": {
+        "blank": false,
+        "index": 0,
+        "elapsedInItemMs": 5000,
+        "remainingMs": 5000
+      }
     },
     {
       "name": "anchor inside the current cycle continues from the anchor index",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": 1000000100000, "anchorIndex": 2 },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": 1000000100000,
+        "anchorIndex": 2
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000000103000,
-      "expected": { "blank": false, "index": 2, "elapsedInItemMs": 3000, "remainingMs": 5000 }
+      "expected": {
+        "blank": false,
+        "index": 2,
+        "elapsedInItemMs": 3000,
+        "remainingMs": 5000
+      }
     },
     {
       "name": "anchor then wraps around to item 0",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": 1000000100000, "anchorIndex": 2 },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": 1000000100000,
+        "anchorIndex": 2
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000000109000,
-      "expected": { "blank": false, "index": 0, "elapsedInItemMs": 1000, "remainingMs": 9000 }
+      "expected": {
+        "blank": false,
+        "index": 0,
+        "elapsedInItemMs": 1000,
+        "remainingMs": 9000
+      }
     },
     {
       "name": "anchor exactly at now",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": 1000000005000, "anchorIndex": 1 },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": 1000000005000,
+        "anchorIndex": 1
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000000005000,
-      "expected": { "blank": false, "index": 1, "elapsedInItemMs": 0, "remainingMs": 30000 }
+      "expected": {
+        "blank": false,
+        "index": 1,
+        "elapsedInItemMs": 0,
+        "remainingMs": 30000
+      }
     },
     {
       "name": "anchor from a previous cycle is ignored",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": 999999000000, "anchorIndex": 2 },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": 999999000000,
+        "anchorIndex": 2
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000000025000,
-      "expected": { "blank": false, "index": 1, "elapsedInItemMs": 15000, "remainingMs": 15000 }
+      "expected": {
+        "blank": false,
+        "index": 1,
+        "elapsedInItemMs": 15000,
+        "remainingMs": 15000
+      }
     },
     {
       "name": "anchor in the future is ignored",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": 1000000050000, "anchorIndex": 2 },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": 1000000050000,
+        "anchorIndex": 2
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000000025000,
-      "expected": { "blank": false, "index": 1, "elapsedInItemMs": 15000, "remainingMs": 15000 }
+      "expected": {
+        "blank": false,
+        "index": 1,
+        "elapsedInItemMs": 15000,
+        "remainingMs": 15000
+      }
     },
     {
       "name": "single item playlist loops on itself",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 9, "durationMs": 5000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 9,
+          "durationMs": 5000
+        }
+      ],
       "now": 1000000012000,
-      "expected": { "blank": false, "index": 0, "elapsedInItemMs": 2000, "remainingMs": 3000 }
+      "expected": {
+        "blank": false,
+        "index": 0,
+        "elapsedInItemMs": 2000,
+        "remainingMs": 3000
+      }
     },
     {
       "name": "empty playlist falls back to blank for the rest of the cycle",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
       "items": [],
       "now": 1000000025000,
-      "expected": { "blank": true, "index": -1, "elapsedInItemMs": 25000, "remainingMs": 17975000 }
+      "expected": {
+        "blank": true,
+        "index": -1,
+        "elapsedInItemMs": 25000,
+        "remainingMs": 17975000
+      }
     },
     {
       "name": "playlist longer than the cycle leaves its tail unreachable",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000000 }, { "id": 2, "durationMs": 9000000 }, { "id": 3, "durationMs": 5000000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000000
+        },
+        {
+          "id": 2,
+          "durationMs": 9000000
+        },
+        {
+          "id": 3,
+          "durationMs": 5000000
+        }
+      ],
       "now": 1000017000000,
-      "expected": { "blank": false, "index": 1, "elapsedInItemMs": 7000000, "remainingMs": 1000000 }
+      "expected": {
+        "blank": false,
+        "index": 1,
+        "elapsedInItemMs": 7000000,
+        "remainingMs": 1000000
+      }
     },
     {
       "name": "short demo cycle of 60s truncates the loop",
       "cycleMs": 60000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 1000000050000,
-      "expected": { "blank": false, "index": 0, "elapsedInItemMs": 2000, "remainingMs": 8000 }
+      "expected": {
+        "blank": false,
+        "index": 0,
+        "elapsedInItemMs": 2000,
+        "remainingMs": 8000
+      }
     },
     {
       "name": "now before the cycle epoch uses floor division",
       "cycleMs": 18000000,
-      "window": { "cycleEpoch": 1000000000000, "anchorAt": null, "anchorIndex": null },
-      "items": [ { "id": 1, "durationMs": 10000 }, { "id": 2, "durationMs": 30000 }, { "id": 3, "durationMs": 8000 } ],
+      "window": {
+        "cycleEpoch": 1000000000000,
+        "anchorAt": null,
+        "anchorIndex": null
+      },
+      "items": [
+        {
+          "id": 1,
+          "durationMs": 10000
+        },
+        {
+          "id": 2,
+          "durationMs": 30000
+        },
+        {
+          "id": 3,
+          "durationMs": 8000
+        }
+      ],
       "now": 999999995000,
-      "expected": { "blank": false, "index": 2, "elapsedInItemMs": 3000, "remainingMs": 5000 }
+      "expected": {
+        "blank": false,
+        "index": 2,
+        "elapsedInItemMs": 3000,
+        "remainingMs": 5000
+      }
     }
   ]
 }

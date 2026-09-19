@@ -9,16 +9,6 @@ import (
 	"github.com/shreyasnandurkar/media-sequencer/backend/internal/model"
 )
 
-// ---------------------------------------------------------------------------
-// SEED DATA
-//
-// The assignment brief refers to "example windows and media lists" but does not
-// include them. Everything below is a placeholder that matches the shape of the
-// brief. To swap in the real example lists, edit ONLY the two tables in this
-// file (seedMedia and seedWindows) — nothing else in the codebase depends on
-// these values.
-// ---------------------------------------------------------------------------
-
 func strptr(s string) *string { return &s }
 
 var seedMedia = []model.Media{
@@ -30,7 +20,6 @@ var seedMedia = []model.Media{
 	{ID: "B", Name: "Blank", Type: model.MediaBlank, URL: nil, DurationMs: 5_000},
 }
 
-// seedWindows lists each window's playlist as media ids, in order.
 var seedWindows = []struct {
 	ID       string
 	Name     string
@@ -42,8 +31,6 @@ var seedWindows = []struct {
 	{ID: "W4", Name: "Window 4", Playlist: []string{"M5", "M2"}},
 }
 
-// Seed inserts the placeholder data, but only when the database is empty.
-// Running it on every boot is therefore safe and data survives restarts.
 func (s *Store) Seed(ctx context.Context) error {
 	return s.withTx(ctx, func(tx pgx.Tx) error {
 		var mediaCount, windowCount int
@@ -64,8 +51,6 @@ func (s *Store) Seed(ctx context.Context) error {
 			}
 		}
 
-		// All windows share one epoch — the start of the current UTC day — so
-		// their 5h cycles are aligned with each other and with the wall clock.
 		epoch := startOfUTCDay(time.Now())
 
 		for i, w := range seedWindows {

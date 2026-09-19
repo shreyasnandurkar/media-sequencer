@@ -1,6 +1,3 @@
-/* One stylesheet for the whole app. Dark by default: the page is mostly video
-   walls, and dark chrome keeps the media the brightest thing on screen. */
-
 :root {
   --bg: #0d1013;
   --panel: #161a1f;
@@ -71,8 +68,6 @@ a {
   color: var(--muted);
 }
 
-/* --- layout ------------------------------------------------------------- */
-
 .app {
   min-height: 100vh;
   padding: 1rem;
@@ -138,8 +133,6 @@ a {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-
-/* --- window player ------------------------------------------------------ */
 
 .player {
   background: var(--panel);
@@ -220,7 +213,7 @@ a {
   width: 100%;
   height: 100%;
   display: block;
-  /* contain, never crop: a display wall must show the whole frame. */
+
   object-fit: contain;
   background: #000;
 }
@@ -260,11 +253,10 @@ a {
 .player__progress-fill {
   height: 100%;
   background: var(--accent);
-  /* Smooths the 250ms tick into continuous motion. */
+
   transition: width 250ms linear;
 }
 
-/* Hidden element that only exists to warm the browser cache. */
 .preload {
   position: absolute;
   width: 1px;
@@ -272,8 +264,6 @@ a {
   opacity: 0;
   pointer-events: none;
 }
-
-/* --- playlist ----------------------------------------------------------- */
 
 .playlist {
   list-style: none;
@@ -339,8 +329,6 @@ a {
   font-size: 0.8rem;
   padding: 0.3rem 0.4rem;
 }
-
-/* --- side panels -------------------------------------------------------- */
 
 .side {
   display: flex;
@@ -411,8 +399,6 @@ a {
   white-space: nowrap;
 }
 
-/* --- media library ------------------------------------------------------ */
-
 .library {
   list-style: none;
   margin: 0;
@@ -468,8 +454,6 @@ a {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.72rem;
 }
-
-/* --- status, alerts, solo view ------------------------------------------ */
 
 .status {
   display: inline-flex;
@@ -530,7 +514,6 @@ a {
   text-align: center;
 }
 
-/* Single-window route: fill the viewport so it can go on a real screen. */
 .app--solo {
   padding: 0;
   max-width: none;

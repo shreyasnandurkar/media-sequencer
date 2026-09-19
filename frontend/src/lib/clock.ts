@@ -1,21 +1,3 @@
-/**
- * Server clock estimation.
- *
- * A browser's Date.now() can be wrong by seconds or minutes, and every window
- * in this app schedules itself from a shared timeline. So we measure the offset
- * between this machine and the server with a small NTP-style handshake and use
- * `serverNow()` everywhere instead of Date.now().
- *
- *   t0 = local time just before the request
- *   t1 = local time just after the response
- *   assume the server's timestamp was taken halfway through the round trip:
- *   offset = serverTime - (t0 + t1) / 2
- *
- * Network latency is asymmetric and noisy, so we take several samples and keep
- * the one with the smallest round trip: the fastest exchange has the least room
- * for error.
- */
-
 export interface ClockInfo {
   offsetMs: number;
   rttMs: number;
@@ -37,7 +19,6 @@ export class ServerClock {
     this.baseUrl = baseUrl;
   }
 
-  /** The current time on the server's timeline, in unix ms. */
   now(): number {
     return Date.now() + this.offsetMs;
   }
@@ -56,7 +37,6 @@ export class ServerClock {
     return () => this.listeners.delete(fn);
   }
 
-  /** Takes `count` samples and keeps the best one. Safe to call repeatedly. */
   async sync(count = 5): Promise<void> {
     let bestRtt = Number.POSITIVE_INFINITY;
     let bestOffset = this.offsetMs;
@@ -77,7 +57,7 @@ export class ServerClock {
         }
         ok++;
       } catch {
-        // A failed sample is not fatal: keep the previous estimate.
+
       }
     }
 
@@ -90,11 +70,6 @@ export class ServerClock {
     }
   }
 
-  /**
-   * Adopt a server timestamp that arrived for free (e.g. inside /api/state).
-   * Only used as a rough first estimate before the first real sync lands, so
-   * the very first frame is not scheduled from a badly wrong clock.
-   */
   seed(serverTimeMs: number): void {
     if (this.syncedAt !== null) return;
     this.offsetMs = serverTimeMs - Date.now();
