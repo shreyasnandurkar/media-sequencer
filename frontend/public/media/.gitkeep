@@ -1,0 +1,11 @@
+Drop local image/video files here to use them without an external host.
+
+Vite (dev) and Vercel/Netlify (prod) both serve this folder at /media/, same
+origin as the app, with HTTP range support -- so video seeking works.
+
+Reference them with an absolute URL when creating media:
+  local:    http://localhost:5173/media/clip.mp4
+  deployed: https://<your-app>.vercel.app/media/clip.mp4
+
+Keep files small (a few MB); they are committed to git and shipped in the
+frontend deploy.
