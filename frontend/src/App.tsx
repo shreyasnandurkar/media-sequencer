@@ -1,122 +1,217 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, Route, Routes, useParams, useSearchParams } from 'react-router-dom';
 
-function App() {
-  const [count, setCount] = useState(0)
+import { API_BASE_URL, api, type Media } from './api/client';
+import { AddMediaForm } from './components/AddMediaForm';
+import { MediaLibrary } from './components/MediaLibrary';
+import { SyncControls } from './components/SyncControls';
+import { WindowGrid } from './components/WindowGrid';
+import { WindowPlayer } from './components/WindowPlayer';
+import { useAppState, type ConnectionStatus } from './hooks/useAppState';
+import { useNow } from './hooks/useNow';
+import { ServerClock, type ClockInfo } from './lib/clock';
 
+// One clock for the whole app, created once at module load. Every window and
+// every route reads the same estimate, which is the entire point.
+const clock = new ServerClock(API_BASE_URL);
+
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    <Routes>
+      <Route path="/" element={<Dashboard />} />
+      {/* A window on its own, for proving cross-device sync in the demo. */}
+      <Route path="/window/:id" element={<SingleWindow />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
 }
 
-export default App
+/** Subscribes to the clock so the debug overlay can show live offset/RTT. */
+function useClockInfo(): ClockInfo {
+  const [info, setInfo] = useState<ClockInfo>(() => clock.info());
+  useEffect(() => clock.subscribe(setInfo), []);
+  return info;
+}
+
+function useDebugFlag(): boolean {
+  const [params] = useSearchParams();
+  return params.get('debug') === '1';
+}
+
+function Dashboard() {
+  const debug = useDebugFlag();
+  const { state, status, error, refresh } = useAppState(clock);
+  const now = useNow(clock);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const mediaById = useMediaIndex(state?.media);
+
+  const deleteItem = useCallback(
+    async (windowId: string, itemId: number) => {
+      try {
+        await api.deleteItem(windowId, itemId);
+        await refresh();
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [refresh],
+  );
+
+  const onDone = useCallback(() => {
+    setActionError(null);
+    void refresh();
+  }, [refresh]);
+
+  return (
+    <div className="app">
+      <TopBar status={status} debug={debug} cycleMs={state?.cycleMs} now={now} />
+
+      {(error || actionError) && (
+        <p className="alert" role="alert">
+          {actionError ?? error}
+          <button type="button" className="alert__close" onClick={() => setActionError(null)}>
+            ×
+          </button>
+        </p>
+      )}
+
+      {!state ? (
+        <p className="empty">Loading…</p>
+      ) : (
+        <main className="layout">
+          <WindowGrid
+            windows={state.windows}
+            mediaById={mediaById}
+            cycleMs={state.cycleMs}
+            activeSync={state.activeSync}
+            now={now}
+            clock={clock}
+            debug={debug}
+            onDeleteItem={deleteItem}
+          />
+
+          <aside className="side">
+            <SyncControls
+              media={state.media}
+              activeSync={state.activeSync}
+              now={now}
+              onDone={onDone}
+              onError={setActionError}
+            />
+            <AddMediaForm
+              windows={state.windows}
+              media={state.media}
+              onDone={onDone}
+              onError={setActionError}
+            />
+            <MediaLibrary media={state.media} onDone={onDone} onError={setActionError} />
+          </aside>
+        </main>
+      )}
+    </div>
+  );
+}
+
+function SingleWindow() {
+  const { id } = useParams<{ id: string }>();
+  const debug = useDebugFlag();
+  const { state, status } = useAppState(clock);
+  const now = useNow(clock);
+  const mediaById = useMediaIndex(state?.media);
+
+  const win = state?.windows.find((w) => w.id === id);
+
+  return (
+    <div className="app app--solo">
+      <div className="solo__bar">
+        <Link to="/" className="solo__back">
+          ← all windows
+        </Link>
+        <span className="solo__name">{win ? `${win.id} — ${win.name}` : id}</span>
+        <StatusDot status={status} />
+      </div>
+
+      {!state ? (
+        <p className="empty">Loading…</p>
+      ) : !win ? (
+        <p className="empty">No window called “{id}”.</p>
+      ) : (
+        <WindowPlayer
+          win={win}
+          mediaById={mediaById}
+          cycleMs={state.cycleMs}
+          activeSync={state.activeSync}
+          now={now}
+          clock={clock}
+          debug={debug}
+          fullscreen
+        />
+      )}
+    </div>
+  );
+}
+
+function NotFound() {
+  return (
+    <div className="app">
+      <p className="empty">
+        Nothing here. <Link to="/">Back to the dashboard</Link>.
+      </p>
+    </div>
+  );
+}
+
+function TopBar({
+  status,
+  debug,
+  cycleMs,
+  now,
+}: {
+  status: ConnectionStatus;
+  debug: boolean;
+  cycleMs: number | undefined;
+  now: number;
+}) {
+  const info = useClockInfo();
+
+  return (
+    <header className="topbar">
+      <h1 className="topbar__title">Media Sequencer</h1>
+
+      <div className="topbar__meta">
+        {debug && cycleMs !== undefined && (
+          <span className="chip" title="Server clock estimate">
+            offset {info.offsetMs >= 0 ? '+' : ''}
+            {info.offsetMs}ms · rtt {info.rttMs < 0 ? '—' : `${info.rttMs}ms`} · cycle {cycleMs / 1000}s ·{' '}
+            {new Date(now).toISOString().slice(11, 23)}
+          </span>
+        )}
+        <StatusDot status={status} />
+      </div>
+    </header>
+  );
+}
+
+function StatusDot({ status }: { status: ConnectionStatus }) {
+  const label: Record<ConnectionStatus, string> = {
+    connecting: 'connecting…',
+    live: 'live (SSE)',
+    polling: 'polling (SSE unavailable)',
+    offline: 'offline',
+  };
+  return (
+    <span className={`status status--${status}`} title={label[status]}>
+      <span className="status__dot" />
+      {label[status]}
+    </span>
+  );
+}
+
+/**
+ * Media lookup by id. useMemo keeps the Map stable between ticks so the
+ * memoised MediaView is not invalidated four times a second.
+ */
+function useMediaIndex(media: Media[] | undefined): Map<string, Media> {
+  return useMemo(() => new Map((media ?? []).map((m) => [m.id, m])), [media]);
+}
