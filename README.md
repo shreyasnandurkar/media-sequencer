@@ -187,6 +187,34 @@ because the cycle restarts at item 0 before reaching it. This is a consequence o
 the "restart every cycle" requirement, not a bug — vector *"playlist longer than
 the cycle leaves its tail unreachable"* pins the behaviour.
 
+### Using media you have locally
+
+Media is referenced by URL; the database stores only metadata (id, name, type,
+url, duration) and the browser fetches the bytes itself. The backend never sees
+a pixel.
+
+For files with no public URL, drop them in `frontend/public/media/`. Vite (dev)
+and Vercel/Netlify (prod) both serve that folder at `/media/`, same origin as
+the app and with HTTP range support -- which matters, because seeking to a
+mid-clip offset is exactly what a late joiner or a mid-sync reload does.
+
+Then create the media with a site-root path rather than a full URL:
+
+```
+/media/clip.mp4
+```
+
+Stored that way, one row works in every environment: the browser resolves the
+path against whatever origin the page is on, so the same value means
+`http://localhost:5173/media/clip.mp4` locally and
+`https://<your-app>.vercel.app/media/clip.mp4` once deployed.
+
+Keep the files small -- they are committed to git and shipped in the frontend
+deploy. There is deliberately **no upload endpoint**: uploading from a browser
+would need somewhere durable to put the bytes, and the free hosting this targets
+has an ephemeral filesystem, so it would mean adding object storage (S3/R2) for
+little gain in a scheduling demo.
+
 **Video.** Videos are `muted` (browsers block autoplay with sound), never use
 `loop`, and are joined at `currentTime = (serverNow - itemStartedAt) / 1000`
 rather than at 0 — which is what makes a reload or a late joiner land in the
@@ -391,7 +419,11 @@ nothing to cancel).
 ### Validation
 
 - Unknown `mediaId` or window → `404`.
-- Bad type, non-positive duration, or a missing/relative/non-`http(s)` URL → `400`.
+- Bad type or non-positive duration → `400`.
+- A media URL must be either an absolute `http(s)://` address **or** a site-root
+  path such as `/media/clip.mp4` (see [local media](#using-media-you-have-locally)).
+  Bare relative paths (`media/clip.mp4`) and protocol-relative ones
+  (`//host/clip.mp4`, which silently points at another origin) are rejected.
 - `blank` media must have no URL; `image`/`video` must have one.
 - Sync `durationMs` outside 1 s–1 h → `400`.
 - Unknown JSON fields are rejected, so a typo in a payload is a `400` rather than

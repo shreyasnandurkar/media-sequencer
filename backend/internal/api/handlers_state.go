@@ -108,9 +108,31 @@ func (s *Server) handleCreateMedia(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-var errBadURL = errors.New("url must be an absolute http:// or https:// address")
+var errBadURL = errors.New(
+	`url must be an absolute http:// or https:// address, or a site-root path like "/media/clip.mp4"`)
 
+// validateMediaURL accepts two forms:
+//
+//	https://cdn.example/clip.mp4   an externally hosted file
+//	/media/clip.mp4                a file served by the frontend itself
+//
+// The second form exists so media kept in frontend/public/media/ can be stored
+// once and still resolve correctly everywhere: the browser resolves it against
+// whatever origin the page is on, so the same row works locally and deployed.
 func validateMediaURL(raw string) error {
+	if strings.HasPrefix(raw, "/") {
+		// "//host/path" is protocol-relative - it looks like a path but points
+		// at another origin entirely, so it is not the local form we mean.
+		if strings.HasPrefix(raw, "//") {
+			return errBadURL
+		}
+		u, err := url.Parse(raw)
+		if err != nil || u.Scheme != "" || u.Host != "" {
+			return errBadURL
+		}
+		return nil
+	}
+
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return errBadURL

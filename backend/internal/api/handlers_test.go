@@ -103,7 +103,7 @@ func TestCreateMediaValidation(t *testing.T) {
 		{"image without url", `{"name":"a","type":"image","durationMs":1000}`},
 		{"video with empty url", `{"name":"a","type":"video","url":"","durationMs":1000}`},
 		{"blank with url", `{"name":"a","type":"blank","url":"https://x.test/a.png","durationMs":1000}`},
-		{"relative url", `{"name":"a","type":"image","url":"/media/a.png","durationMs":1000}`},
+		{"protocol-relative url", `{"name":"a","type":"image","url":"//evil.example/a.png","durationMs":1000}`},
 		{"non-http scheme", `{"name":"a","type":"image","url":"ftp://x.test/a.png","durationMs":1000}`},
 		{"malformed json", `{"name":`},
 		{"unknown field", `{"name":"a","type":"blank","durationMs":1000,"colour":"red"}`},
@@ -116,6 +116,40 @@ func TestCreateMediaValidation(t *testing.T) {
 			}
 			assertErrorShape(t, rec)
 		})
+	}
+}
+
+// validateMediaURL is exercised directly because the accepted cases cannot go
+// through the handler without a database.
+func TestValidateMediaURL(t *testing.T) {
+	ok := []string{
+		"https://cdn.example/clip.mp4",
+		"http://localhost:5173/media/clip.mp4",
+		"https://picsum.photos/id/1015/1280/720",
+		// Site-root paths: media served by the frontend itself.
+		"/media/clip.mp4",
+		"/media/sub dir/a%20b.png",
+	}
+	for _, raw := range ok {
+		if err := validateMediaURL(raw); err != nil {
+			t.Errorf("%q should be accepted, got %v", raw, err)
+		}
+	}
+
+	bad := []string{
+		"",
+		"media/clip.mp4",          // relative, but not rooted
+		"//evil.example/clip.mp4", // protocol-relative: another origin in disguise
+		"ftp://example.com/a.mp4",
+		"javascript:alert(1)",
+		"data:text/html,hi",
+		"https://",  // no host
+		"http:///a", // no host
+	}
+	for _, raw := range bad {
+		if err := validateMediaURL(raw); err == nil {
+			t.Errorf("%q should be rejected", raw)
+		}
 	}
 }
 

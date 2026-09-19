@@ -8,7 +8,11 @@ interface Props {
   onError: (message: string) => void;
 }
 
-/** Reads a remote video's real length, so the user does not have to guess. */
+/**
+ * Reads a video's real length, so the user does not have to guess.
+ * Accepts both an absolute URL and a /media/ path (the browser resolves the
+ * latter against the page origin, exactly as the <video> element will).
+ */
 function probeVideoDuration(url: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const probe = document.createElement('video');
@@ -114,13 +118,16 @@ export function MediaLibrary({ media, onDone, onError }: Props) {
 
         {type !== 'blank' && (
           <label className="field">
-            <span>URL</span>
+            <span>URL or /media/ path</span>
+            {/* Deliberately type="text", not type="url": the browser's built-in
+                url validation rejects a path like /media/clip.mp4, which is the
+                form we want for files served from frontend/public/media/. */}
             <input
-              type="url"
+              type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               required
-              placeholder="https://…"
+              placeholder="https://… or /media/clip.mp4"
             />
           </label>
         )}
