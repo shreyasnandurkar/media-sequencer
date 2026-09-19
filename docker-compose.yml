@@ -1,0 +1,22 @@
+# Local Postgres for development.
+#   PowerShell:  docker compose up -d
+services:
+  db:
+    image: postgres:16
+    container_name: sequencer-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sequencer
+    ports:
+      - "5432:5432"
+    volumes:
+      - sequencer-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sequencer"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sequencer-pgdata:

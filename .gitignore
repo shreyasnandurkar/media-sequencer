@@ -1,0 +1,26 @@
+# Env files (never commit secrets)
+.env
+.env.local
+*.env
+!.env.example
+
+# Go
+backend/server
+backend/server.exe
+backend/tmp/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local scratch
+*.log
+.gotest/
