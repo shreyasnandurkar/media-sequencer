@@ -61,16 +61,17 @@ all — and a dropped message can never desynchronise anything, it can only make
 client's copy of the *playlist* briefly stale.
 
 That same function exists twice — [`backend/internal/scheduler/scheduler.go`](backend/internal/scheduler/scheduler.go)
-and [`frontend/src/lib/scheduler.ts`](frontend/src/lib/scheduler.ts) — and both
-are tested against one shared file, [`testdata/schedule_vectors.json`](testdata/schedule_vectors.json),
-so they cannot drift apart.
+and [`frontend/src/lib/scheduler.ts`](frontend/src/lib/scheduler.ts) — as a
+line-for-line port. They must be kept in step by hand, so
+[`GET /api/windows/{id}/now`](#7-api-documentation) returns the server's own
+`resolve()` result: comparing it with the `?debug=1` overlay shows immediately
+whether the two agree.
 
 ### Repository layout
 
 ```
 backend/    Go service: config, model, scheduler (pure), store, events, api
 frontend/   React + Vite + TypeScript
-testdata/   schedule_vectors.json - shared by the Go and TS test suites
 ```
 
 ---
@@ -100,42 +101,31 @@ npm run dev
 Add `?debug=1` to any page for the clock-offset/RTT readout and a per-window
 overlay showing the resolved index, elapsed/remaining ms and the anchor.
 
-### Tests
+### Checking the two schedulers agree
+
+The Go and TypeScript `resolve()` implementations are ports of each other, so
+after touching either one compare them on live data:
 
 ```powershell
-# Go
-cd backend
-go test ./...
-
-# TypeScript (runs the same vectors)
-cd frontend
-npm test
+Invoke-RestMethod http://localhost:8080/api/windows/W1/now | ConvertTo-Json -Depth 5
 ```
 
-There is also an **opt-in integration test** that checks the TypeScript
-scheduler against the Go one on live data, by comparing it with
-`GET /api/windows/{id}/now` for every window. With the backend running:
-
-```powershell
-cd frontend
-$env:API_BASE = "http://localhost:8080"; npm test
-```
-
-> **Windows note.** On machines with Smart App Control / an Application Control
-> policy enabled, `go test ./...` can fail with
-> *"An Application Control policy has blocked this file"*. That is the OS
-> refusing to execute the throw-away `.exe` that `go test` compiles into a temp
-> folder — the tests themselves are fine. Run `.\backend\test.ps1` instead; it
-> compiles each test binary to a stable path and runs it.
+`resolved.index` and `resolved.elapsedInItemMs` must match the `?debug=1`
+overlay on that window in the browser.
 
 ### Manual verification script
 
-Run the backend with a 1-minute cycle so the 5-hour behaviour is observable:
+The real cycle is 5 hours, which is not something you can sit and watch. For a
+demo only, run the backend locally with the cycle compressed to 1 minute:
 
 ```powershell
 cd backend
 $env:CYCLE_MS = "60000"; go run ./cmd/server
 ```
+
+> This is a **local, temporary** override set in one shell. The committed
+> default is 5 hours (`CYCLE_MS=18000000` in `config.go`, `.env.example` and
+> `render.yaml`) and that is what deploys. Close the terminal and it is gone.
 
 Then check, with `http://localhost:5173/?debug=1` open:
 
@@ -184,8 +174,7 @@ has at least one item with a positive duration, `resolve` always returns an item
 
 **Playlists longer than 5 hours** have a tail that never plays inside a cycle,
 because the cycle restarts at item 0 before reaching it. This is a consequence of
-the "restart every cycle" requirement, not a bug — vector *"playlist longer than
-the cycle leaves its tail unreachable"* pins the behaviour.
+the "restart every cycle" requirement, not a bug.
 
 ### Using media you have locally
 
@@ -292,9 +281,9 @@ Anchors are scoped to the cycle they were set in — `resolve` ignores an anchor
 whose `anchor_at` is before the current `cycleStart` (or in the future), so the
 next 5-hour boundary still restarts cleanly at item 0.
 
-This is covered by tests for append, insert-before-current, delete-another and
-delete-current, each asserting that the current item's id and start time are
-unchanged.
+The cases that matter are append, insert-before-current, delete-another and
+delete-current: in the first three the current item's id and start time must be
+unchanged, and in the last the replacement starts immediately at `now`.
 
 **Transport.** `GET /api/events` is a Server-Sent Events stream emitting
 `window.updated`, `media.created`, `sync.started` and `sync.cancelled`. Clients
@@ -491,33 +480,75 @@ Notes:
 
 ## 9. Deployment
 
-Config files are committed: [`backend/Dockerfile`](backend/Dockerfile),
+Frontend on **Vercel**, Go backend on **Render**, Postgres on **Neon**. All the
+config is committed: [`backend/Dockerfile`](backend/Dockerfile),
 [`render.yaml`](render.yaml), [`frontend/vercel.json`](frontend/vercel.json),
 [`frontend/public/_redirects`](frontend/public/_redirects) (Netlify).
 
+> **Why the backend is not on Vercel.** `/api/events` is a Server-Sent Events
+> stream held open by an in-memory hub (`events/hub.go`). Every Vercel function
+> invocation is a separate instance with its own memory, so a `POST` that
+> published an event would be running somewhere other than the process holding
+> the client's stream, and no client would ever receive it. Realtime would
+> silently fall back to 5 s polling, and sync's 1.5 s lead time would be missed.
+> The backend needs one long-lived process: Render, Fly.io and Railway all work.
+
 The Docker image is multi-stage (`golang:1.25-alpine` → `distroless/static`,
-`CGO_ENABLED=0`) and has been built and run locally against the compose
-Postgres. Migrations are embedded, so the image needs no extra files.
+`CGO_ENABLED=0`). Migrations are embedded, so the image needs no extra files.
 
-**1. Database — Neon (or Supabase).** Create a free Postgres project and copy the
-connection string. It must end with `?sslmode=require`.
+### 1. Database — Neon
 
-**2. Backend — Render (Docker web service).** Root directory `backend`, health
-check path `/api/health`. Environment variables:
+Create a free Postgres project and copy the pooled connection string. It must
+include `?sslmode=require`.
+
+### 2. Backend — Render
+
+New → Web Service → your repo, then:
+
+| Setting | Value |
+| --- | --- |
+| Runtime | Docker |
+| Root directory | `backend` |
+| Dockerfile path | `./Dockerfile` |
+| Health check path | `/api/health` |
+
+Environment variables:
 
 | Variable | Value |
 | --- | --- |
 | `DATABASE_URL` | the Neon string, with `sslmode=require` |
 | `ALLOWED_ORIGINS` | the exact frontend origin, e.g. `https://media-sequencer.vercel.app` |
-| `CYCLE_MS` | `18000000` |
+| `CYCLE_MS` | `18000000` (5 hours) |
 | `SYNC_LEAD_MS` | `1500` |
 | `SEED_ON_START` | `true` |
-| `PORT` | set by Render automatically |
+| `PORT` | set by Render automatically — do not override |
 
-**3. Frontend — Vercel (or Netlify).** Root directory `frontend`, build
-`npm run build`, output `dist`. Set `VITE_API_BASE_URL` to the backend URL. The
-committed `vercel.json` / `_redirects` provide the SPA fallback so `/window/W1`
-survives a hard refresh.
+`ALLOWED_ORIGINS` is a chicken-and-egg: deploy the frontend first to learn its
+URL, or set it afterwards and let Render redeploy.
+
+### 3. Frontend — Vercel
+
+New Project → your repo, then:
+
+| Setting | Value |
+| --- | --- |
+| Framework preset | Vite (auto-detected) |
+| **Root directory** | **`frontend`** — this one is easy to miss |
+| Build command | `npm run build` (from `vercel.json`) |
+| Output directory | `dist` (from `vercel.json`) |
+
+One environment variable:
+
+| Variable | Value |
+| --- | --- |
+| `VITE_API_BASE_URL` | the Render URL, e.g. `https://media-sequencer-api.onrender.com` — no trailing slash |
+
+`VITE_` variables are baked in at **build** time, not read at runtime, so after
+changing it you must redeploy for it to take effect.
+
+The committed `vercel.json` rewrites every path that is not `/assets/…`,
+`/media/…` or the favicon to `index.html`, so `/window/W1` survives a hard
+refresh instead of 404ing.
 
 **After deploying**, check:
 
@@ -529,7 +560,8 @@ survives a hard refresh.
   boot and `seed skipped, database already has data` afterwards.
 
 > Render's free tier sleeps after inactivity, so the first request after a quiet
-> period takes several seconds to wake the service.
+> period takes 30-60 s to wake the service. If the dashboard looks stuck on
+> "Loading…" right after a quiet spell, that is what is happening.
 
 ### Environment variables
 
@@ -563,7 +595,7 @@ environment variables always win, which is what hosting platforms expect.
 - **The list restarts at item 0 at every cycle boundary**, truncating any partial
   loop. An item straddling the boundary is cut off, not allowed to finish.
 - **A playlist longer than the cycle** has a tail that never plays. Documented
-  above and pinned by a test vector.
+  above.
 - **Images and blanks have configured durations**; videos use their real length
   unless a per-item `durationMs` override is given. The "create media" form can
   read a video's real duration from its metadata.
@@ -606,8 +638,8 @@ reconnect or late joiner needs special handling. Making the current item a pure
 function of `(state, time)` moves the problem to clock agreement, which is a
 smaller and much better-understood problem — solved here with a ~40-line NTP-style
 offset estimate. The cost is that clients must be trusted to compute correctly,
-which is why the same function is tested on both sides against one shared file,
-and why `GET /api/windows/{id}/now` exists to compare them.
+which is why `GET /api/windows/{id}/now` exists: it returns the server's own
+answer so the two can be compared at any moment.
 
 **Postgres vs SQLite.** SQLite would remove a moving part, but the free hosting
 tiers this targets have ephemeral filesystems, so a SQLite file would vanish on
@@ -620,10 +652,17 @@ every patch is a chance to apply an update out of order and leave a client
 silently wrong. The whole payload is a few kilobytes, so the simple option wins
 until it measurably does not.
 
-**Verification.** One thing not verified here: the app was never opened in a real
-browser during development (no browser automation was available in the
-environment). Everything is verified through the Go and TypeScript test suites,
-direct API calls against the running server, an SSE stream capture, a live
-cycle-boundary probe, and the cross-implementation integration test — but the
-rendering itself, and the video-drift behaviour in particular, still needs a
-human to look at it.
+**No automated tests in the repo.** They were written during development — 16
+shared scheduler vectors exercised by both the Go and the TypeScript port, plus
+re-anchor and handler-validation tests — and were removed before publishing at
+the author's request. What remains is the manual verification script above and
+the `/api/windows/{id}/now` endpoint for comparing the two schedulers. The
+consequence is worth stating plainly: a change to either `resolve()` will not be
+caught by anything automatic, so the two implementations have to be re-checked
+by hand.
+
+**Verification.** The app was not opened in a real browser during development
+(no browser automation was available in the environment). Behaviour was verified
+through direct API calls against the running server, an SSE stream capture and a
+live cycle-boundary probe — but the rendering itself, and video drift correction
+in particular, still needs a human to look at it.
