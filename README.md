@@ -18,7 +18,7 @@ pushed to **every** window at the same instant.
 | Backend health | `https://<your-api>.onrender.com/api/health` |
 | Single window | `https://<your-app>.vercel.app/window/W1` |
 
-### How to demo (3 lines)
+### How to demo (60 seconds)
 
 1. Open the dashboard — four windows play their own playlists, each with a
    progress bar and its playlist below it, current item highlighted.
@@ -27,6 +27,9 @@ pushed to **every** window at the same instant.
    then each returns to its own schedule.
 3. Use **Add media to a window** — the new item appears in every open tab within
    about a second, and the item currently on screen does **not** jump.
+
+The full walkthrough, including what to look for and why each step is the
+interesting one, is in [§12 Demo script](#12-demo-script).
 
 ---
 
@@ -138,6 +141,52 @@ Then check, with `http://localhost:5173/?debug=1` open:
 | 5 | Start a sync with two tabs open | Both switch together; when it ends each resumes its own schedule |
 | 6 | Reload during a sync | The sync media is showing, and a video is at the right offset |
 | 7 | Stop and restart the backend | Playlists and any edits are still there |
+
+---
+
+### The debug overlay (`?debug=1`)
+
+Add `?debug=1` to any page — `http://localhost:5173/?debug=1` or
+`/window/W1?debug=1` — to expose what the client is actually computing. It is
+the fastest way to see whether a window is where it should be.
+
+**Top bar** shows the clock estimate:
+
+```
+offset +12ms · rtt 3ms · cycle 18000s · 09:41:07.482
+```
+
+| Field | Meaning |
+| --- | --- |
+| `offset` | `serverNow() - Date.now()`, the correction applied to this machine's clock. Large values are fine; *unstable* values are the warning sign. |
+| `rtt` | Round trip of the best `/api/time` sample. The offset is only as good as this is small. |
+| `cycle` | `CYCLE_MS` in seconds, straight from `/api/state`. `18000s` = the real 5h cycle; `60s` = the demo override. |
+| clock | The current server time this client believes in. Two devices showing the same value are genuinely in step. |
+
+**Per window**, an overlay in the corner of the stage:
+
+```
+item   1 / 3
+media  M2 (item)
+elapsed 9726ms
+left    274ms
+cycle   25.6%
+anchor  1789795210000 / 2
+v4
+```
+
+| Field | Meaning |
+| --- | --- |
+| `item` | Resolved index within the playlist. |
+| `media` | Media id, and the segment kind: `item` (normal playback), `sync` (a global sync is showing), or `blank` (empty playlist). |
+| `elapsed` / `left` | Position within the current item. `left` is capped at the cycle boundary, so it is what actually drives the next switch. |
+| `cycle` | How far through the 5h cycle this window is. At 100% it wraps to 0% and the playlist restarts at item 0. |
+| `anchor` | `anchorAt / anchorIndex`. `- / -` means clean playback from the cycle start; values appear after a playlist edit and disappear again at the next cycle boundary. |
+| `v` | The window's version, bumped on every mutation. If this does not change after an edit, the SSE event did not arrive. |
+
+To check the browser against the server, compare this overlay with
+[`GET /api/windows/{id}/now`](#get-apiwindowsidnow) — `item` and `elapsed`
+should match to within the time between the two observations.
 
 ---
 
@@ -405,6 +454,45 @@ be between 1 s and 1 h.
 **`DELETE /api/sync/active`** → `200 { "cancelled": true }` (`false` if there was
 nothing to cancel).
 
+### `GET /api/windows/{id}/now`
+
+The server's own `resolve()` answer for a window, at the instant of the request.
+Read-only, no side effects. It exists so the browser's computation can be checked
+against the backend's — they run the same algorithm in two languages, so any
+disagreement is a bug in one of the ports.
+
+```jsonc
+// GET /api/windows/W1/now  -> 200
+{
+  "windowId": "W1",
+  "serverTimeMs": 1789798624041,
+  "cycleMs": 18000000,
+  "resolved": {
+    "blank": false,
+    "index": 1,
+    "itemId": 21,
+    "mediaId": "M2",
+    "elapsedInItemMs": 9726,
+    "remainingMs": 274,
+    "startedAtMs": 1789798614315,
+    "cycleStartMs": 1789794000000,
+    "cycleEndMs": 1789812000000
+  },
+  "activeSync": null
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `resolved.blank` | `true` only for an empty playlist. A *blank media item* is a normal item and reports `false`. |
+| `resolved.index` | Playlist position, `-1` when `blank`. |
+| `resolved.itemId` | `playlist_items.id` — the identity the re-anchoring matches on, not `mediaId`. |
+| `resolved.remainingMs` | Capped at `cycleEndMs`, so an item straddling the boundary is cut off there. |
+| `resolved.startedAtMs` | `serverTimeMs - elapsedInItemMs`. Unchanged across a playlist edit is exactly the no-jump guarantee. |
+| `activeSync` | The sync overriding normal playback, or `null`. `resolved` always reports the *underlying* schedule, even mid-sync. |
+
+Unknown window → `404`.
+
 ### Validation
 
 - Unknown `mediaId` or window → `404`.
@@ -493,13 +581,49 @@ config is committed: [`backend/Dockerfile`](backend/Dockerfile),
 > silently fall back to 5 s polling, and sync's 1.5 s lead time would be missed.
 > The backend needs one long-lived process: Render, Fly.io and Railway all work.
 
-The Docker image is multi-stage (`golang:1.25-alpine` → `distroless/static`,
-`CGO_ENABLED=0`). Migrations are embedded, so the image needs no extra files.
+**On Docker:** [`backend/Dockerfile`](backend/Dockerfile) is for **Render only**.
+Vercel does not build or run Dockerfiles — it is not a container host. The
+frontend goes to Vercel as a static Vite build (`dist/`), which is why there is
+no frontend Dockerfile and no use for one. The Go image is multi-stage
+(`golang:1.25-alpine` → `distroless/static`, `CGO_ENABLED=0`, non-root);
+migrations are embedded with `go:embed`, so it needs no extra files at runtime.
+It has been built and run locally against the compose Postgres.
 
 ### 1. Database — Neon
 
-Create a free Postgres project and copy the pooled connection string. It must
-include `?sslmode=require`.
+Create a free project at [neon.tech](https://neon.tech) (region closest to your
+Render region). On the project dashboard, **Connect** gives you a connection
+string — there are two, and for this app the choice matters.
+
+**Use the direct string, not the pooled one.** Neon offers a pooled endpoint
+(hostname containing `-pooler`, routed through PgBouncer in transaction mode)
+and a direct one (no `-pooler`). Take the **direct** one:
+
+```
+postgres://USER:PASSWORD@ep-xxx-123456.us-east-2.aws.neon.tech/neondb?sslmode=require
+                          ^^^^^^^^^^^^^^^^^^ no "-pooler" here
+```
+
+Three reasons, specific to this service:
+
+- **Migrations run at startup.** `store.Migrate()` executes DDL inside a
+  transaction on every boot. Schema changes want a session, and PgBouncer in
+  transaction mode does not give you a stable one.
+- **pgx caches prepared statements.** pgx/v5's default exec mode prepares and
+  reuses statements; behind a transaction-mode pooler that surfaces as
+  `prepared statement "stmtN" already exists` — an error that never mentions
+  pooling, so it is a miserable one to debug. (Pin
+  `?default_query_exec_mode=exec` if you ever *must* go through the pooler.)
+- **Pooling buys nothing here.** This is one long-lived Render process holding
+  its own `pgxpool`. PgBouncer exists for serverless runtimes that open a
+  connection per request; that is the opposite of this architecture.
+
+`sslmode=require` is mandatory — Neon refuses plaintext connections.
+
+> **Cold starts compound.** Neon suspends an idle compute after ~5 minutes
+> (scale-to-zero) and Render's free tier sleeps too. After a quiet spell the
+> first request can wait for *both* to wake. Storage is untouched — nothing is
+> lost, it is just slow once. Load the dashboard a minute before demoing.
 
 ### 2. Backend — Render
 
@@ -666,3 +790,68 @@ by hand.
 through direct API calls against the running server, an SSE stream capture and a
 live cycle-boundary probe — but the rendering itself, and video drift correction
 in particular, still needs a human to look at it.
+
+---
+
+## 12. Demo script
+
+A walkthrough that shows every requirement in order. Have the dashboard open at
+`?debug=1`, and `/window/W1?debug=1` in a second tab (or on a phone) beside it.
+
+For steps 2 and 3 the 5h cycle is too slow to watch, so run the backend locally
+with the cycle compressed — see [Manual verification script](#manual-verification-script).
+Everything else works against the deployed 5h build.
+
+**1. Each window plays its own list, continuously and in order.**
+Watch the four windows for half a minute. Each advances through its own playlist
+back to back. The playlist under each window highlights the current item, and the
+progress bar tracks it. Nothing stutters and nothing goes black between items —
+the next item is preloaded before the switch.
+
+**2. The cycle restarts at item 0.** *(needs `CYCLE_MS=60000`)*
+Watch the `cycle` percentage in a window's overlay climb toward 100%. At the
+boundary, whatever was mid-item is cut off and `item` jumps straight back to
+`0 / n`. That is the 5h rule, compressed.
+
+**3. Blank appears only when it is meant to.**
+W2's playlist is `M2 -> B -> M4`. The black panel lasts exactly the 5 seconds
+that `B` is scheduled for, then M4 starts. At no other point does any window go
+blank — that is the requirement about the rest of the cycle never silently
+going dark.
+
+**4. Two screens agree.**
+Compare the dashboard's W1 tile against the `/window/W1` tab. Same media, same
+progress, same `elapsed` in the overlay. Neither tab told the other anything;
+both computed it from `(window state, server time)`. Reload one — it comes back
+mid-item, in the right place, not at the start.
+
+**5. Add media at runtime, without a jump.**
+Note what W1 is playing and its `elapsed`. In **Add media to a window**, pick
+W1, pick any media, set **Position** to `0`, and submit. Within about a second:
+the item list updates in every open tab, `v` increments, and `anchor` appears in
+the overlay — but the item on screen keeps playing, with `elapsed` still
+climbing from where it was. The new item is now index 0 and will play on the
+next pass.
+
+**6. Sync every window to one item.**
+In **Sync all windows**, pick `M2` and press the button. Every window — the four
+tiles and the separate `/window/W1` tab — switches to M2 together, each showing
+the `SYNC` badge. The switch is scheduled 1.5 s ahead so the event reaches every
+client before it is due, which is why they move together rather than in a
+ripple.
+
+**7. Join a sync late, at the right offset.**
+While the sync is still running, reload the `/window/W1` tab. It comes back
+already showing the sync media, at the correct offset — a video resumes
+part-way, it does not restart. The active sync is part of `/api/state`, so a
+late joiner has everything it needs.
+
+**8. Sync ends, each window returns to its own schedule.**
+When the sync finishes, every window resumes — not where it was interrupted, but
+wherever its own timeline has reached in the meantime. The schedule kept running
+underneath. Press **Cancel sync** mid-way to see the same thing happen early.
+
+**9. It survives a restart.**
+Stop the backend and start it again. The log says
+`seed skipped, database already has data`, and the playlist edit from step 5 is
+still there.

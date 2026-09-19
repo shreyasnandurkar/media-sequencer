@@ -24,3 +24,15 @@ Thumbs.db
 # Local scratch
 *.log
 .gotest/
+.neon
+
+#MD
+*.md
+
+# Tooling scaffolding at the repo root - not part of this project.
+# (The app's own manifests live in frontend/ and backend/.)
+/neon.ts
+/package.json
+/package-lock.json
+/skills-lock.json
+/.neon

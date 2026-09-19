@@ -1,6 +1,9 @@
 .env
-.gotest/
-.gotmp/
+.env.*
+!.env.example
 *.exe
 *.test
-test.ps1
+.gotest/
+.gotmp/
+Dockerfile
+.dockerignore
