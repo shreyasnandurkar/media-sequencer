@@ -1,0 +1,6 @@
+.env
+.gotest/
+.gotmp/
+*.exe
+*.test
+test.ps1

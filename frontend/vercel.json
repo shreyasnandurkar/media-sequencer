@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "//": "SPA fallback: /window/W1 is a client route, not a file. Without this a hard refresh 404s.",
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

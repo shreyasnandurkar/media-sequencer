@@ -1,0 +1,2 @@
+# Netlify SPA fallback, so /window/W1 survives a refresh.
+/*  /index.html  200

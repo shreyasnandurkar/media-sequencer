@@ -1,0 +1,23 @@
+# Render blueprint for the Go backend.
+#
+# The database is created separately (Neon/Supabase free tier) and its
+# connection string pasted into DATABASE_URL in the Render dashboard --
+# secrets are never committed here.
+services:
+  - type: web
+    name: media-sequencer-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false # set in the dashboard; must include sslmode=require
+      - key: ALLOWED_ORIGINS
+        sync: false # the exact frontend origin, e.g. https://media-sequencer.vercel.app
+      - key: CYCLE_MS
+        value: "18000000"
+      - key: SYNC_LEAD_MS
+        value: "1500"
+      - key: SEED_ON_START
+        value: "true"

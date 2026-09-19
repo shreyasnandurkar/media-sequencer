@@ -14,6 +14,10 @@ import { resolve } from './scheduler';
  * Run it with the backend up:
  *   $env:API_BASE="http://localhost:8080"; npm test
  */
+// Declared locally rather than pulling Node's global types into the app's
+// tsconfig: this file is the only one that runs outside the browser.
+declare const process: { env: Record<string, string | undefined> };
+
 const API_BASE = process.env.API_BASE;
 
 describe.skipIf(!API_BASE)('TS and Go schedulers agree on live data', () => {
